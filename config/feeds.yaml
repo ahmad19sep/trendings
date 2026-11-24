@@ -1,0 +1,122 @@
+version: 1
+feeds:
+  - id: dawn-home
+    name: Dawn
+    url: https://www.dawn.com/feeds/home
+    country: PK
+    language: en
+    type: general
+    tier: 1
+    refreshMinutes: 15
+    verifiedOn: 2026-11-23
+    enabled: true
+
+  - id: express-tribune-home
+    name: The Express Tribune
+    url: https://tribune.com.pk/feed/home
+    country: PK
+    language: en
+    type: general
+    tier: 1
+    refreshMinutes: 15
+    verifiedOn: 2026-11-23
+    enabled: true
+
+  - id: jang-top
+    name: Daily Jang
+    url: https://jang.com.pk/rss/1/1
+    country: PK
+    language: ur
+    type: general
+    tier: 1
+    refreshMinutes: 15
+    verifiedOn: 2026-11-23
+    enabled: true
+
+  - id: nation-top-stories
+    name: The Nation
+    url: https://nation.com.pk/rss/top-stories
+    country: PK
+    language: en
+    type: general
+    tier: 1
+    refreshMinutes: 15
+    verifiedOn: 2026-11-23
+    enabled: true
+
+  - id: bbc-news
+    name: BBC News
+    url: https://feeds.bbci.co.uk/news/rss.xml
+    country: GB
+    language: en
+    type: general
+    tier: 1
+    refreshMinutes: 15
+    verifiedOn: 2026-11-23
+    enabled: true
+
+  - id: bbc-world
+    name: BBC World
+    url: https://feeds.bbci.co.uk/news/world/rss.xml
+    country: GB
+    language: en
+    type: world
+    tier: 2
+    refreshMinutes: 60
+    verifiedOn: 2026-11-23
+    enabled: true
+
+  - id: bbc-asia
+    name: BBC Asia
+    url: https://feeds.bbci.co.uk/news/world/asia/rss.xml
+    country: GB
+    language: en
+    type: asia
+    tier: 1
+    refreshMinutes: 15
+    verifiedOn: 2026-11-23
+    enabled: true
+
+  - id: bbc-sport
+    name: BBC Sport
+    url: https://feeds.bbci.co.uk/sport/rss.xml
+    country: GB
+    language: en
+    type: sport
+    tier: 2
+    refreshMinutes: 60
+    verifiedOn: 2026-11-23
+    enabled: true
+
+  - id: bbc-technology
+    name: BBC Technology
+    url: https://feeds.bbci.co.uk/news/technology/rss.xml
+    country: GB
+    language: en
+    type: technology
+    tier: 2
+    refreshMinutes: 60
+    verifiedOn: 2026-11-23
+    enabled: true
+
+  - id: bbc-urdu
+    name: BBC Urdu
+    url: https://feeds.bbci.co.uk/urdu/rss.xml
+    country: GB
+    language: ur
+    type: general
+    tier: 1
+    refreshMinutes: 15
+    verifiedOn: 2026-11-23
+    enabled: true
+
+  - id: bbc-hindi
+    name: BBC Hindi
+    url: https://feeds.bbci.co.uk/hindi/rss.xml
+    country: GB
+    language: hi
+    type: general
+    tier: 1
+    refreshMinutes: 15
+    verifiedOn: 2026-11-23
+    enabled: true

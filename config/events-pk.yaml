@@ -1,0 +1,86 @@
+# Curated events are not trend fixtures. They are editable calendar seeds with
+# explicit provenance and must be re-verified each year.
+- key: pakistan-day
+  title: Pakistan Day
+  category: Religion & Culture
+  month: 3
+  day: 23
+  all_day: true
+  recurrence: yearly
+  markets: [PK]
+  confidence: confirmed
+  source_url: https://www.cabinet.gov.pk/Detail/OTE2ODBiYmItZmI0MS00NDAwLWE5NGUtYmE1MGVjYzllMzAz
+  last_verified_at: 2026-11-23
+
+- key: labour-day-pk
+  title: Labour Day
+  category: Society & Crime
+  month: 5
+  day: 1
+  all_day: true
+  recurrence: yearly
+  markets: [PK]
+  confidence: confirmed
+  source_url: https://www.cabinet.gov.pk/Detail/OTE2ODBiYmItZmI0MS00NDAwLWE5NGUtYmE1MGVjYzllMzAz
+  last_verified_at: 2026-11-23
+
+- key: youm-e-takbeer
+  title: Youm-e-Takbeer
+  category: Pakistan Politics
+  month: 5
+  day: 28
+  all_day: true
+  recurrence: yearly
+  markets: [PK]
+  confidence: reported
+  source_url: https://cabinet.gov.pk/NewsDetail/NzEwNDc2MTAtZDcxMy00OGE2LThkZjktMDdlMGQ5Y2JiNTE5
+  last_verified_at: 2026-11-23
+
+- key: pakistan-independence-day
+  title: Pakistan Independence Day
+  category: Religion & Culture
+  month: 8
+  day: 14
+  all_day: true
+  recurrence: yearly
+  markets: [PK]
+  confidence: confirmed
+  source_url: https://www.cabinet.gov.pk/Detail/OTE2ODBiYmItZmI0MS00NDAwLWE5NGUtYmE1MGVjYzllMzAz
+  last_verified_at: 2026-11-23
+
+- key: defence-day-pk
+  title: Defence Day
+  category: Geopolitics & Conflict
+  month: 9
+  day: 6
+  all_day: true
+  recurrence: yearly
+  markets: [PK]
+  confidence: reported
+  source_url: https://heritage.pakistan.gov.pk/SiteImage/Misc/files/Year%20Book%202016_17%20Material.pdf
+  last_verified_at: 2026-11-23
+
+- key: iqbal-day
+  title: Allama Iqbal Day
+  category: Religion & Culture
+  month: 11
+  day: 9
+  all_day: true
+  recurrence: yearly
+  markets: [PK]
+  confidence: confirmed
+  source_url: https://cabinet.gov.pk/SiteImage/Misc/files/Holidays/2026/Notification%20for%20Allama%20Iqbal%20Day_05-11-2026.pdf
+  last_verified_at: 2026-11-23
+
+- key: quaid-e-azam-day
+  title: Quaid-e-Azam Day
+  category: Religion & Culture
+  month: 12
+  day: 25
+  all_day: true
+  recurrence: yearly
+  markets: [PK]
+  confidence: confirmed
+  source_url: https://www.cabinet.gov.pk/Detail/OTE2ODBiYmItZmI0MS00NDAwLWE5NGUtYmE1MGVjYzllMzAz
+  last_verified_at: 2026-11-23
+
