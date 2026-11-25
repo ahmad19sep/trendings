@@ -36,8 +36,12 @@ passwords into this file.
   always-on worker host.
 - The production `ADMIN_PASSWORD_HASH` was regenerated through a masked local
   prompt, uploaded as a Vercel secret, and verified without exposing the
-  password or hash. No administrator row existed at the time of the reset, so
-  the first successful production sign-in will bootstrap it.
+  password or hash. The subsequent production sign-in succeeded and
+  bootstrapped the database administrator.
+- The production dashboard now loads its 25 topic cards with four batched
+  database reads instead of 76 sequential reads. Vercel functions are pinned
+  to Tokyo (`hnd1`) beside the Supabase pooler, and the runtime is pinned to
+  Node 24. The optimized deployment is READY at the production URL.
 - The hardened ingestion and worker lifecycle implementation is committed and
   pushed to `origin/main` as `5682a28`.
 
@@ -114,6 +118,12 @@ passwords into this file.
     confirming that no database administrator existed. Updated the production
     Argon2id secret, redeployed successfully, verified HTTP 200 with no login
     configuration warnings, and removed all temporary reset artifacts.
+16. Diagnosed the sidebar-only production load as a 76-query sequential
+    dashboard waterfall amplified by Vercel `iad1` to Supabase Tokyo latency.
+    Batched the reads down to four, request-memoized the duplicate session
+    check, pinned Node 24 and Vercel `hnd1`, then passed typecheck, lint, 142
+    tests, and the 14-page production build. Deployment inspection confirms the
+    production functions are READY in `hnd1`.
 
 ## Known live-data issue
 
@@ -131,14 +141,17 @@ passwords into this file.
   `origin/main` and contains the runtime/config, rate-limit, atomic-ingestion,
   worker recovery/shutdown, acceptance-test, documentation, and continuity
   changes described above.
+- Commit `50fc2d9` (`Speed up production dashboard`) is pushed to `origin/main`
+  and contains the batched dashboard reads, request-scoped auth memoization,
+  Node 24 pin, and Tokyo Vercel region configuration.
 - No migration was added for that work.
 - `.env.local` and `.vercel` remain ignored; do not commit either directory or
   copy their values into documentation.
 
 ## Resume from here
 
-1. Complete the first production sign-in and confirm that the administrator
-   user is bootstrapped successfully.
+1. Confirm the optimized dashboard content appears promptly after a hard
+   refresh of the production URL.
 2. Decide whether to keep Vercel deployment protection/SSO or disable it so the
    app's own login page is directly reachable from the public URL.
 3. Deploy `pnpm worker` on an always-on host such as Railway, Render, Fly.io, or
