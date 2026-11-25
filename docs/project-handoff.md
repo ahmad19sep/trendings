@@ -34,9 +34,10 @@ passwords into this file.
 - This is a web-only deployment. The persistent pg-boss worker is not hosted on
   Vercel and remains stopped, so scheduled ingestion requires a separate
   always-on worker host.
-- The production `ADMIN_PASSWORD_HASH` was corrected to a valid Argon2id value
-  without changing the password, and the refreshed Vercel login page was
-  verified without any authentication-configuration warning.
+- The production `ADMIN_PASSWORD_HASH` was regenerated through a masked local
+  prompt, uploaded as a Vercel secret, and verified without exposing the
+  password or hash. No administrator row existed at the time of the reset, so
+  the first successful production sign-in will bootstrap it.
 - The hardened ingestion and worker lifecycle implementation is committed and
   pushed to `origin/main` as `5682a28`.
 
@@ -109,6 +110,10 @@ passwords into this file.
     variables, corrected `ADMIN_PASSWORD_HASH`, and verified the protected
     production login page. Vercel SSO remains enabled; the pg-boss worker was
     not deployed.
+15. Reset the administrator password through a masked local-only prompt after
+    confirming that no database administrator existed. Updated the production
+    Argon2id secret, redeployed successfully, verified HTTP 200 with no login
+    configuration warnings, and removed all temporary reset artifacts.
 
 ## Known live-data issue
 
