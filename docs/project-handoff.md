@@ -27,8 +27,18 @@ passwords into this file.
   bookmark `ON DELETE SET NULL`, and stale-source-run reconciliation.
 - The current verified snapshot is 1,185 items, 75 raw payloads, 1,022 topics,
   and 1,173 topic-item links, with zero `running` source runs.
-- This worktree is intentionally dirty and has not been committed. Preserve the
-  changes listed below when resuming.
+- The production web app is deployed at
+  `https://trendings-gamma.vercel.app` against the existing Supabase database.
+  Vercel deployment protection/SSO is still enabled, so visitors must first be
+  authorized by Vercel and then use the app's own login.
+- This is a web-only deployment. The persistent pg-boss worker is not hosted on
+  Vercel and remains stopped, so scheduled ingestion requires a separate
+  always-on worker host.
+- The production `ADMIN_PASSWORD_HASH` was corrected to a valid Argon2id value
+  without changing the password, and the refreshed Vercel login page was
+  verified without any authentication-configuration warning.
+- The hardened ingestion and worker lifecycle implementation is committed and
+  pushed to `origin/main` as `5682a28`.
 
 ## Completed on 2026-11-24
 
@@ -60,14 +70,14 @@ passwords into this file.
    `c87ea7c4-c7fb-4502-82c4-c9429005d930`: it remained `created` while the
    worker was down, completed after restart, processed all six markets, and had
    zero pg-boss retries.
-6. Added uncommitted fixes and tests for:
+6. Added fixes and tests for:
    - atomic raw/item/topic/source-success persistence inside one transaction;
    - untyped HTTP error bodies so GDELT 429 is surfaced and retained safely;
    - a six-second minimum fallback delay for 429 responses without Retry-After;
    - deterministic pg-boss plus Drizzle-pool shutdown and startup-failure cleanup;
    - startup reconciliation of source runs left `running` for more than 30 minutes;
    - automatic `.env.local` loading for migrate, seed, worker, and ingest scripts.
-7. Reviewed the uncommitted implementation and fixed two additional provenance
+7. Reviewed the implementation and fixed two additional provenance
    and lifecycle defects:
    - successful items now reference the successful response after a retained
      429 retry instead of the earlier error payload;
@@ -90,9 +100,15 @@ passwords into this file.
     as `ProcessInterrupted`, then verified zero unfinished source runs.
 12. Updated stale live-database claims in `README.md` and the GDELT capability
     row in `docs/source-capabilities.md`.
-13. Final gates pass: TypeScript typecheck, warning-free lint, 20 test files and
-    142 tests passed (the two live acceptance files / two tests skip unless
-    explicitly enabled), the 14-page production build, and `git diff --check`.
+13. Final gates pass: TypeScript typecheck, lint with three unused-parameter
+    warnings in `src/worker/runner.test.ts`, 20 test files and 142 tests passed
+    (the two live acceptance files / two tests skip unless explicitly enabled),
+    the 14-page production build, and `git diff --check`.
+14. Deployed the web app to Vercel at
+    `https://trendings-gamma.vercel.app`, configured production database/auth
+    variables, corrected `ADMIN_PASSWORD_HASH`, and verified the protected
+    production login page. Vercel SSO remains enabled; the pg-boss worker was
+    not deployed.
 
 ## Known live-data issue
 
@@ -104,31 +120,33 @@ passwords into this file.
   seven-day audit window. The current atomic-ingestion change prevents the same
   partial-write pattern on future failures.
 
-## Uncommitted implementation
+## Committed implementation
 
-- Pre-existing continuity changes: `AGENTS.md` and this handoff file.
-- Runtime/config: `package.json`.
-- Fetch/rate-limit handling: `src/lib/http/safe-fetch.ts`,
-  `src/worker/http-client.ts`, and their tests.
-- Atomic ingestion: `src/worker/ingestion.ts`, `persistence.ts`,
-  `topic-pipeline.ts`, and `ingestion.test.ts`.
-- Worker recovery/shutdown: `src/worker/recovery.ts`, `recovery.test.ts`,
-  `recovery.acceptance.test.ts`, `retention.ts`,
-  `retention.acceptance.test.ts`, `runner.ts`, `runner.test.ts`, `shutdown.ts`,
-  `shutdown.test.ts`, `schedules.ts`, and `index.ts`.
-- Truthful project status: `README.md` and `docs/source-capabilities.md`.
-- No migration was added and no commit was created.
+- Commit `5682a28` (`Harden ingestion and worker lifecycle`) is pushed to
+  `origin/main` and contains the runtime/config, rate-limit, atomic-ingestion,
+  worker recovery/shutdown, acceptance-test, documentation, and continuity
+  changes described above.
+- No migration was added for that work.
+- `.env.local` and `.vercel` remain ignored; do not commit either directory or
+  copy their values into documentation.
 
 ## Resume from here
 
-1. Begin with `git status --short`, review the complete uncommitted diff, and
-   commit the continuity files with the implementation when Ahmad is ready.
-2. Ask Ahmad before deleting the 12 known failed-run orphan items. The final
+1. Complete the first production sign-in and confirm that the administrator
+   user is bootstrapped successfully.
+2. Decide whether to keep Vercel deployment protection/SSO or disable it so the
+   app's own login page is directly reachable from the public URL.
+3. Deploy `pnpm worker` on an always-on host such as Railway, Render, Fly.io, or
+   the intended VPS; do not attempt to run the persistent pg-boss process in a
+   Vercel function.
+4. Connect the Vercel project to the GitHub repository if automatic deployments
+   from `main` are desired; the current production deployment was made manually.
+5. Ask Ahmad before deleting the 12 known failed-run orphan items. The final
    provenance check still finds exactly those 12 and no other unlinked items.
-3. Continue the documented Phase 1 backlog: unfinished free connectors,
+6. Continue the documented Phase 1 backlog: unfinished free connectors,
    multilingual clustering, digest generation, persistent alert evaluation,
    and database-backed Playwright coverage.
-4. Complete the free Phase 1 acceptance suite before starting Phase 2. Phase 2
+7. Complete the free Phase 1 acceptance suite before starting Phase 2. Phase 2
    remains off until Ahmad explicitly approves an individual paid decision.
 
 The detailed backlog and constraints remain in `README.md`,
