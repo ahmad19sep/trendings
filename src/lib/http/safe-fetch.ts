@@ -178,7 +178,10 @@ export async function safeFetch(
 
       const hasNoResponseBody = method === "HEAD" || response.status === 304;
       if (!hasNoResponseBody) {
-        assertAllowedContentType(response.headers.get("content-type"));
+        assertAllowedContentType(
+          response.headers.get("content-type"),
+          response.status >= 400,
+        );
       }
       assertDeclaredSize(response.headers.get("content-length"), maxBytes);
       const body =
@@ -352,8 +355,15 @@ async function validateResolvedHost(
   }
 }
 
-function assertAllowedContentType(contentType: string | null): void {
+function assertAllowedContentType(
+  contentType: string | null,
+  allowMissing = false,
+): void {
   if (!contentType) {
+    // Some providers omit Content-Type on bounded HTTP error bodies. Let the
+    // caller interpret the status (and Retry-After) without weakening type
+    // checks for successful responses or explicitly unsafe media types.
+    if (allowMissing) return;
     throw new SafeFetchError(
       "UNSUPPORTED_CONTENT_TYPE",
       "Response is missing a Content-Type header",

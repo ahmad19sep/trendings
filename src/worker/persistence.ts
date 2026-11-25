@@ -11,6 +11,10 @@ import type { ConnectorCapabilities, RawItem } from "../lib/connectors";
 import type { HttpValidators, RecordedPayload } from "./http-client";
 
 type Database = NodePgDatabase<typeof schema>;
+type DatabaseTransaction = Parameters<
+  Parameters<Database["transaction"]>[0]
+>[0];
+type DatabaseExecutor = Database | DatabaseTransaction;
 
 export interface SourceIdentity {
   id: string;
@@ -104,7 +108,7 @@ export async function loadLatestHttpValidators(
 }
 
 export async function persistRawPayloads(
-  db: Database,
+  db: DatabaseExecutor,
   input: {
     sourceId: string;
     sourceRunId: string;
@@ -151,7 +155,7 @@ export async function persistRawPayloads(
 }
 
 export async function persistItems(
-  db: Database,
+  db: DatabaseExecutor,
   input: {
     source: SourceIdentity;
     items: readonly RawItem[];
@@ -270,7 +274,7 @@ export async function persistItems(
 }
 
 export async function finishSourceRun(
-  db: Database,
+  db: DatabaseExecutor,
   input: {
     sourceId: string;
     sourceRunId: string;

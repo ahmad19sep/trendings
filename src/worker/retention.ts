@@ -1,10 +1,14 @@
 import { lt } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-import { getDb } from "@/db/client";
-import * as schema from "@/db/schema";
+import { getDb } from "../db/client";
+import * as schema from "../db/schema";
 
 type Database = NodePgDatabase<typeof schema>;
+type DatabaseTransaction = Parameters<
+  Parameters<Database["transaction"]>[0]
+>[0];
+type DatabaseExecutor = Database | DatabaseTransaction;
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -18,7 +22,7 @@ export interface RetentionResult {
 }
 
 export async function runRetention(
-  db: Database = getDb(),
+  db: DatabaseExecutor = getDb(),
   now = new Date(),
 ): Promise<RetentionResult> {
   const itemCutoff = new Date(now.getTime() - 90 * DAY);

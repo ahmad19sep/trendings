@@ -22,6 +22,8 @@ export interface QueueDefinition extends QueueOptions {
   notify: boolean;
 }
 
+export const INGESTION_QUEUE_EXPIRE_SECONDS = 20 * 60;
+
 const ingestionQueueDefaults = {
   policy: "exclusive",
   notify: true,
@@ -29,7 +31,7 @@ const ingestionQueueDefaults = {
   retryDelay: 30,
   retryBackoff: true,
   retryDelayMax: 15 * 60,
-  expireInSeconds: 20 * 60,
+  expireInSeconds: INGESTION_QUEUE_EXPIRE_SECONDS,
   retentionSeconds: 24 * 60 * 60,
   deleteAfterSeconds: 7 * 24 * 60 * 60,
 } as const satisfies Omit<QueueDefinition, "name">;

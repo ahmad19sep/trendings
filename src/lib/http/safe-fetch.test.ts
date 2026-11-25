@@ -159,6 +159,35 @@ describe("safeFetch response constraints", () => {
     expect(result.text()).toBe("");
   });
 
+  it("returns a bounded HTTP error that omits Content-Type", async () => {
+    const fetchImpl: FetchImplementation = async () =>
+      new Response(new TextEncoder().encode("slow down"), {
+        status: 429,
+        headers: { "content-length": "9" },
+      });
+
+    const result = await safeFetch("https://example.test/feed", {
+      resolver: publicResolver,
+      fetchImpl,
+    });
+
+    expect(result.status).toBe(429);
+    expect(result.headers.get("content-type")).toBeNull();
+    expect(result.text()).toBe("slow down");
+  });
+
+  it("still requires Content-Type on successful responses", async () => {
+    const fetchImpl: FetchImplementation = async () =>
+      new Response(new TextEncoder().encode("untyped success"), { status: 200 });
+
+    await expect(
+      safeFetch("https://example.test/feed", {
+        resolver: publicResolver,
+        fetchImpl,
+      }),
+    ).rejects.toEqual(expectCode("UNSUPPORTED_CONTENT_TYPE"));
+  });
+
   it("rejects unsupported media types", async () => {
     const fetchImpl: FetchImplementation = async () =>
       new Response(new Uint8Array([1, 2, 3]), {

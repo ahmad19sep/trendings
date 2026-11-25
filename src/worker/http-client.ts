@@ -103,6 +103,25 @@ export class RecordingFetchClient implements FetchClient {
 
     const body = response.text();
     const contentType = response.headers.get("content-type");
+    const recordedPayload = {
+      url: response.finalUrl.toString(),
+      status: response.status,
+      fetchedAt,
+      contentType,
+      etag: response.headers.get("etag"),
+      lastModified: response.headers.get("last-modified"),
+      body,
+      contentHash: createHash("sha256").update(body).digest("hex"),
+    };
+
+    if (response.status < 200 || response.status >= 300) {
+      this.payloads.push(recordedPayload);
+      throw new ConnectorHttpError(
+        `Provider returned HTTP ${response.status}.`,
+        response.status,
+        parseRetryAfter(response.headers.get("retry-after")),
+      );
+    }
 
     if (
       options.acceptedContentTypes?.length &&
@@ -113,24 +132,7 @@ export class RecordingFetchClient implements FetchClient {
       );
     }
 
-    this.payloads.push({
-      url: response.finalUrl.toString(),
-      status: response.status,
-      fetchedAt,
-      contentType,
-      etag: response.headers.get("etag"),
-      lastModified: response.headers.get("last-modified"),
-      body,
-      contentHash: createHash("sha256").update(body).digest("hex"),
-    });
-
-    if (response.status === 429 || response.status >= 500) {
-      throw new ConnectorHttpError(
-        `Provider returned HTTP ${response.status}.`,
-        response.status,
-        parseRetryAfter(response.headers.get("retry-after")),
-      );
-    }
+    this.payloads.push(recordedPayload);
 
     return {
       url: response.finalUrl.toString(),

@@ -24,7 +24,7 @@ Without PostgreSQL, the dashboard can show a labeled, non-persistent Pakistan Go
 - Docker Compose for local PostgreSQL
 - PostgreSQL 18 with pgvector 0.8.7 for a manual database setup
 
-Docker was unavailable in the build environment. Database code and migrations can be statically verified, but this repository does not claim a live database run yet.
+The shared Supabase PostgreSQL database was migrated, seeded, and exercised with live ingestion, persisted queues, restart behavior, rollback-only retention/recovery acceptance tests, and graceful worker shutdown on 2026-11-25. Docker Compose remains available for an isolated local database.
 
 ## Local setup
 
@@ -74,6 +74,13 @@ corepack pnpm test
 corepack pnpm build
 ```
 
+The live database acceptance tests are explicit and rollback-only. With a configured `.env.local`, run:
+
+```powershell
+$env:RUN_DATABASE_ACCEPTANCE = "1"
+node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs run src/worker/retention.acceptance.test.ts src/worker/recovery.acceptance.test.ts
+```
+
 Playwright acceptance coverage will run through `corepack pnpm test:e2e` once the database-backed test environment is added. Test-only XML never enters live ranking, digests, or exports.
 
 ## Free connectors
@@ -121,7 +128,6 @@ pg_dump --format=custom --file="trend-radar-$(date +%F).dump" "$DATABASE_URL"
 
 ## Blockers before full Phase 1 acceptance
 
-- Docker/PostgreSQL for live migration, persistence, retention, and restart tests.
 - A reviewed 100-item multilingual evaluation corpus, which was not supplied in the brief.
 - Credentials for live verification of credentialed free integrations.
 - Remaining connectors, cross-language clustering, digest/alert jobs, and Playwright coverage.

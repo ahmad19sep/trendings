@@ -24,7 +24,7 @@ import {
 } from "./registry";
 import type { IngestionQueueName } from "./schedules";
 import { workerLogger } from "./logger";
-import { materializeItemsIntoTopics } from "./topic-pipeline";
+import { materializeItemsIntoTopicsInTransaction } from "./topic-pipeline";
 
 type Database = NodePgDatabase<typeof schema>;
 
@@ -50,7 +50,7 @@ interface RunDescriptorDependencies {
   startSourceRun: typeof startSourceRun;
   persistRawPayloads: typeof persistRawPayloads;
   persistItems: typeof persistItems;
-  materializeItemsIntoTopics: typeof materializeItemsIntoTopics;
+  materializeItemsIntoTopics: typeof materializeItemsIntoTopicsInTransaction;
   finishSourceRun: typeof finishSourceRun;
   failSourceRun: typeof failSourceRun;
   sleep(ms: number): Promise<void>;
@@ -63,7 +63,7 @@ const defaultRunDescriptorDependencies: RunDescriptorDependencies = {
   startSourceRun,
   persistRawPayloads,
   persistItems,
-  materializeItemsIntoTopics,
+  materializeItemsIntoTopics: materializeItemsIntoTopicsInTransaction,
   finishSourceRun,
   failSourceRun,
   sleep,
@@ -73,12 +73,16 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function retryDelay(error: unknown, attempt: number): number {
+export function retryDelay(error: unknown, attempt: number): number {
   if (error instanceof ConnectorHttpError && error.retryAfterMs !== null) {
     return error.retryAfterMs;
   }
   const exponential = Math.min(30_000, 1_000 * 2 ** Math.max(0, attempt - 1));
-  return exponential + Math.floor(Math.random() * Math.max(250, exponential / 4));
+  const delay =
+    exponential + Math.floor(Math.random() * Math.max(250, exponential / 4));
+  return error instanceof ConnectorHttpError && error.status === 429
+    ? Math.max(6_000, delay)
+    : delay;
 }
 
 export async function runDescriptor(
@@ -108,25 +112,31 @@ export async function runDescriptor(
     attempts += 1;
     try {
       const items = await connector.fetch();
-      const rawIds = await dependencies.persistRawPayloads(db, {
-        sourceId: source.id,
-        sourceRunId,
-        payloads: client.payloads,
-      });
-      const persisted = await dependencies.persistItems(db, {
-        source,
-        items,
-        rawPayloadId: rawIds[0],
-      });
-      const materialized = await dependencies.materializeItemsIntoTopics(db, {
-        itemIds: persisted.itemIds,
-        listLength: persisted.listLength,
-      });
-      await dependencies.finishSourceRun(db, {
-        sourceId: source.id,
-        sourceRunId,
-        itemsFetched: persisted.count,
-        attempts,
+      const { persisted, materialized } = await db.transaction(async (tx) => {
+        const rawIds = await dependencies.persistRawPayloads(tx, {
+          sourceId: source.id,
+          sourceRunId,
+          payloads: client.payloads,
+        });
+        const persisted = await dependencies.persistItems(tx, {
+          source,
+          items,
+          // Failed HTTP attempts are retained for auditability, so the payload
+          // parsed into this successful batch is the latest one, not
+          // necessarily the first payload recorded during the run.
+          rawPayloadId: rawIds.at(-1),
+        });
+        const materialized = await dependencies.materializeItemsIntoTopics(tx, {
+          itemIds: persisted.itemIds,
+          listLength: persisted.listLength,
+        });
+        await dependencies.finishSourceRun(tx, {
+          sourceId: source.id,
+          sourceRunId,
+          itemsFetched: persisted.count,
+          attempts,
+        });
+        return { persisted, materialized };
       });
       workerLogger.info(
         {

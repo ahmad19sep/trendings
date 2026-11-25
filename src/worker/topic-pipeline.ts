@@ -34,6 +34,9 @@ import {
 } from "../lib/topics/rules";
 
 type Database = NodePgDatabase<typeof schema>;
+type DatabaseTransaction = Parameters<
+  Parameters<Database["transaction"]>[0]
+>[0];
 
 const PIPELINE_LOCK_ID = 1_907_112_024;
 const CANDIDATE_WINDOW_MS = 72 * 60 * 60 * 1_000;
@@ -294,6 +297,15 @@ export async function materializeItemsIntoTopics(
   db: Database,
   input: TopicPipelineInput,
 ): Promise<TopicPipelineResult> {
+  return db.transaction((tx) =>
+    materializeItemsIntoTopicsInTransaction(tx, input),
+  );
+}
+
+export async function materializeItemsIntoTopicsInTransaction(
+  tx: DatabaseTransaction,
+  input: TopicPipelineInput,
+): Promise<TopicPipelineResult> {
   const itemIds = [...new Set(input.itemIds)];
   if (itemIds.length === 0) {
     return {
@@ -304,11 +316,10 @@ export async function materializeItemsIntoTopics(
     };
   }
 
-  return db.transaction(async (tx) => {
-    // All topic matching is serialized so two independent feed queues cannot
-    // create parallel topics for the same headline before either link exists.
-    await tx.execute(sql`select pg_advisory_xact_lock(${PIPELINE_LOCK_ID})`);
-    const observedAt = input.observedAt ?? new Date();
+  // All topic matching is serialized so two independent feed queues cannot
+  // create parallel topics for the same headline before either link exists.
+  await tx.execute(sql`select pg_advisory_xact_lock(${PIPELINE_LOCK_ID})`);
+  const observedAt = input.observedAt ?? new Date();
 
     const [storedWeights] = await tx
       .select({ value: schema.settings.value })
@@ -720,11 +731,10 @@ export async function materializeItemsIntoTopics(
         });
     }
 
-    return {
-      itemCount: incoming.length,
-      itemsLinked,
-      topicsCreated,
-      topicIds: [...affected],
-    };
-  });
+  return {
+    itemCount: incoming.length,
+    itemsLinked,
+    topicsCreated,
+    topicIds: [...affected],
+  };
 }

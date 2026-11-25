@@ -6,6 +6,7 @@ import type {
 } from "../lib/http/safe-fetch";
 
 import {
+  ConnectorHttpError,
   ConnectorNotModifiedError,
   RecordingFetchClient,
 } from "./http-client";
@@ -82,5 +83,56 @@ describe("RecordingFetchClient conditional requests", () => {
     );
 
     expect(error).toMatchObject({ status: 304, fetchedAt });
+  });
+
+  it("records an untyped 429 body before exposing retry metadata", async () => {
+    const fetchImpl: FetchImplementation = async () =>
+      new Response(new TextEncoder().encode("rate limited"), {
+        status: 429,
+        headers: { "retry-after": "7" },
+      });
+    const client = new RecordingFetchClient({ resolver: publicResolver, fetchImpl });
+
+    await expect(
+      client.fetch("https://example.test/feed", {
+        acceptedContentTypes: ["application/json"],
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining({
+        name: "ConnectorHttpError",
+        status: 429,
+        retryAfterMs: 7_000,
+      }),
+    );
+
+    expect(client.payloads).toHaveLength(1);
+    expect(client.payloads[0]).toMatchObject({
+      status: 429,
+      contentType: null,
+      body: "rate limited",
+    });
+  });
+
+  it("does not record a successful response rejected by connector type", async () => {
+    const fetchImpl: FetchImplementation = async () =>
+      new Response("<html>not json</html>", {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      });
+    const client = new RecordingFetchClient({ resolver: publicResolver, fetchImpl });
+
+    await expect(
+      client.fetch("https://example.test/feed", {
+        acceptedContentTypes: ["application/json"],
+      }),
+    ).rejects.toThrow("Connector rejected response media type text/html");
+
+    expect(client.payloads).toEqual([]);
+  });
+
+  it("uses the exported HTTP error type for provider failures", () => {
+    const error = new ConnectorHttpError("Provider returned HTTP 503.", 503, null);
+
+    expect(error).toMatchObject({ status: 503, retryAfterMs: null });
   });
 });
