@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray, lte, sql } from "drizzle-orm";
 import { io } from "next/cache";
 
 import { getDb, isDatabaseConfigured } from "@/db/client";
@@ -200,81 +200,159 @@ async function readLivePreview(): Promise<DashboardResult> {
 
 type DashboardDatabase = ReturnType<typeof getDb>;
 type StoredTopic = typeof topics.$inferSelect;
+type LatestScoreRow = Pick<
+  typeof scores.$inferSelect,
+  | "topicId"
+  | "score"
+  | "provisional"
+  | "collectingHistory"
+  | "breakdown"
+>;
+type EvidenceRow = {
+  topicId: string;
+  title: string;
+  source: string | null;
+  url: string;
+  language: string;
+};
+type StoredRiskFlag = Pick<
+  typeof riskFlags.$inferSelect,
+  "topicId" | "type" | "severity" | "reason"
+>;
 
-async function mapDatabaseTopic(
-  db: DashboardDatabase,
+function rowsByTopicId<T extends { topicId: string }>(
+  rows: T[],
+): Map<string, T[]> {
+  const grouped = new Map<string, T[]>();
+  for (const row of rows) {
+    const existing = grouped.get(row.topicId);
+    if (existing) existing.push(row);
+    else grouped.set(row.topicId, [row]);
+  }
+  return grouped;
+}
+
+function mapDatabaseTopic(
   topic: StoredTopic,
-): Promise<DashboardTopic> {
-    const [latestScore] = await db
-      .select()
-      .from(scores)
-      .where(eq(scores.topicId, topic.id))
-      .orderBy(desc(scores.computedAt))
-      .limit(1);
+  latestScore: LatestScoreRow | undefined,
+  evidenceRows: EvidenceRow[],
+  storedRiskFlags: StoredRiskFlag[],
+): DashboardTopic {
+  const breakdown = latestScore?.breakdown ?? [];
+  const storedLanguage = evidenceRows[0]?.language ?? "unknown";
+  const language = supportedLanguages.includes(
+    storedLanguage as SupportedLanguage,
+  )
+    ? (storedLanguage as SupportedLanguage)
+    : "unknown";
+  const category = categories.includes(topic.primaryCategory as Category)
+    ? (topic.primaryCategory as Category)
+    : "Other/Unclassified";
+  const now = Date.now();
+  return {
+    id: topic.id,
+    titleOriginal: topic.titleOriginal,
+    titleEnglish: topic.titleEn,
+    language,
+    category,
+    score: Math.round(latestScore?.score ?? 0),
+    scoreExact: latestScore?.score ?? 0,
+    provisional: latestScore?.provisional ?? true,
+    collectingHistory: latestScore?.collectingHistory ?? true,
+    scoreBreakdown: breakdown,
+    firstSeenAt: topic.firstSeenAt.toISOString(),
+    ageMinutes: Math.max(0, Math.round((now - topic.firstSeenAt.getTime()) / 60_000)),
+    markets: topic.trendMarkets,
+    distinctOutletCount: topic.distinctOutletCount,
+    sourceName: "Clustered sources",
+    sourcePosition: null,
+    approximateTrafficRaw: null,
+    evidence: evidenceRows.map(({ title, source, url }) => ({
+      title,
+      source,
+      url,
+    })),
+    url: `/topic/${topic.id}`,
+    riskFlags: storedRiskFlags.map(
+      (flag) => `${flag.severity} · ${flag.type}: ${flag.reason}`,
+    ),
+    origin: "live",
+  };
+}
 
-    const evidenceRows = await db
-      .select({
-        title: items.titleOriginal,
-        source: items.outletName,
-        url: items.url,
-        language: items.language,
+async function mapDatabaseTopics(
+  db: DashboardDatabase,
+  storedTopics: StoredTopic[],
+): Promise<DashboardTopic[]> {
+  if (storedTopics.length === 0) return [];
+
+  const topicIds = storedTopics.map((topic) => topic.id);
+  const rankedEvidence = db
+    .select({
+      topicId: topicItems.topicId,
+      title: items.titleOriginal,
+      source: items.outletName,
+      url: items.url,
+      language: items.language,
+      evidenceRank:
+        sql<number>`row_number() over (partition by ${topicItems.topicId} order by ${topicItems.addedAt} desc)`.as(
+          "evidence_rank",
+        ),
+    })
+    .from(topicItems)
+    .innerJoin(items, eq(topicItems.itemId, items.id))
+    .where(inArray(topicItems.topicId, topicIds))
+    .as("ranked_evidence");
+
+  const [latestScores, evidenceRows, storedRiskFlags] = await Promise.all([
+    db
+      .selectDistinctOn([scores.topicId], {
+        topicId: scores.topicId,
+        score: scores.score,
+        provisional: scores.provisional,
+        collectingHistory: scores.collectingHistory,
+        breakdown: scores.breakdown,
       })
-      .from(topicItems)
-      .innerJoin(items, eq(topicItems.itemId, items.id))
-      .where(eq(topicItems.topicId, topic.id))
-      .orderBy(desc(topicItems.addedAt))
-      .limit(12);
-
-    const storedRiskFlags = await db
+      .from(scores)
+      .where(inArray(scores.topicId, topicIds))
+      .orderBy(scores.topicId, desc(scores.computedAt)),
+    db
       .select({
+        topicId: rankedEvidence.topicId,
+        title: rankedEvidence.title,
+        source: rankedEvidence.source,
+        url: rankedEvidence.url,
+        language: rankedEvidence.language,
+      })
+      .from(rankedEvidence)
+      .where(lte(rankedEvidence.evidenceRank, 12))
+      .orderBy(rankedEvidence.topicId, rankedEvidence.evidenceRank),
+    db
+      .select({
+        topicId: riskFlags.topicId,
         type: riskFlags.type,
         severity: riskFlags.severity,
         reason: riskFlags.reason,
       })
       .from(riskFlags)
-      .where(eq(riskFlags.topicId, topic.id))
-      .orderBy(desc(riskFlags.createdAt));
+      .where(inArray(riskFlags.topicId, topicIds))
+      .orderBy(riskFlags.topicId, desc(riskFlags.createdAt)),
+  ]);
 
-    const breakdown = latestScore?.breakdown ?? [];
-    const storedLanguage = evidenceRows[0]?.language ?? "unknown";
-    const language = supportedLanguages.includes(
-      storedLanguage as SupportedLanguage,
-    )
-      ? (storedLanguage as SupportedLanguage)
-      : "unknown";
-    const category = categories.includes(topic.primaryCategory as Category)
-      ? (topic.primaryCategory as Category)
-      : "Other/Unclassified";
-    const now = Date.now();
-    return {
-      id: topic.id,
-      titleOriginal: topic.titleOriginal,
-      titleEnglish: topic.titleEn,
-      language,
-      category,
-      score: Math.round(latestScore?.score ?? 0),
-      scoreExact: latestScore?.score ?? 0,
-      provisional: latestScore?.provisional ?? true,
-      collectingHistory: latestScore?.collectingHistory ?? true,
-      scoreBreakdown: breakdown,
-      firstSeenAt: topic.firstSeenAt.toISOString(),
-      ageMinutes: Math.max(0, Math.round((now - topic.firstSeenAt.getTime()) / 60_000)),
-      markets: topic.trendMarkets,
-      distinctOutletCount: topic.distinctOutletCount,
-      sourceName: "Clustered sources",
-      sourcePosition: null,
-      approximateTrafficRaw: null,
-      evidence: evidenceRows.map(({ title, source, url }) => ({
-        title,
-        source,
-        url,
-      })),
-      url: `/topic/${topic.id}`,
-      riskFlags: storedRiskFlags.map(
-        (flag) => `${flag.severity} · ${flag.type}: ${flag.reason}`,
-      ),
-      origin: "live",
-    };
+  const scoresByTopicId = new Map(
+    latestScores.map((score) => [score.topicId, score]),
+  );
+  const evidenceByTopicId = rowsByTopicId(evidenceRows);
+  const riskFlagsByTopicId = rowsByTopicId(storedRiskFlags);
+
+  return storedTopics.map((topic) =>
+    mapDatabaseTopic(
+      topic,
+      scoresByTopicId.get(topic.id),
+      evidenceByTopicId.get(topic.id) ?? [],
+      riskFlagsByTopicId.get(topic.id) ?? [],
+    ),
+  );
 }
 
 async function readDatabaseTopics(): Promise<DashboardResult> {
@@ -284,11 +362,7 @@ async function readDatabaseTopics(): Promise<DashboardResult> {
     .from(topics)
     .orderBy(desc(topics.lastActivityAt))
     .limit(25);
-  const mapped: DashboardTopic[] = [];
-
-  for (const topic of rows) {
-    mapped.push(await mapDatabaseTopic(db, topic));
-  }
+  const mapped = await mapDatabaseTopics(db, rows);
 
   return {
     topics: mapped,
@@ -306,7 +380,9 @@ async function readDatabaseTopic(id: string): Promise<DashboardTopic | null> {
     .from(topics)
     .where(eq(topics.id, id))
     .limit(1);
-  return topic ? mapDatabaseTopic(db, topic) : null;
+  if (!topic) return null;
+  const [mapped] = await mapDatabaseTopics(db, [topic]);
+  return mapped ?? null;
 }
 
 export async function getDashboardTopics(): Promise<DashboardResult> {
