@@ -1,6 +1,6 @@
 # Project handoff
 
-Updated: 2026-11-25, Asia/Karachi
+Updated: 2026-11-26, Asia/Karachi
 
 This file preserves working context across Codex or ChatGPT accounts and
 sessions. Read it before making changes and update it after substantial work.
@@ -42,6 +42,11 @@ passwords into this file.
   database reads instead of 76 sequential reads. Vercel functions are pinned
   to Tokyo (`hnd1`) beside the Supabase pooler, and the runtime is pinned to
   Node 24. The optimized deployment is READY at the production URL.
+- The dashboard now selects from a recent 250-topic window and prioritizes
+  English/Latin titles, then Urdu/Arabic, with Hindi as a fallback. English or
+  deterministic Romanized text is the primary display, while the untouched
+  source headline remains labeled as `Original`. Romanization is not claimed as
+  translation and uses no paid service.
 - The hardened ingestion and worker lifecycle implementation is committed and
   pushed to `origin/main` as `5682a28`.
 
@@ -125,6 +130,23 @@ passwords into this file.
     tests, and the 14-page production build. Deployment inspection confirms the
     production functions are READY in `hnd1`.
 
+## Completed on 2026-11-26
+
+1. Confirmed the previous live top 25 were all Devanagari Hindi because the
+   latest Hindi ingestion batch occupied the recency-only cutoff; 632 stored
+   English topics were still available.
+2. Added a recent-window readable-topic selection tier: English/Latin first,
+   Urdu/Arabic second, and Hindi fallback, while preserving recency inside each
+   tier and retaining the four-query dashboard path.
+3. Added deterministic, tested Devanagari and Urdu-script Romanization. UI
+   cards, compare, bookmarks/CSV, topic detail, evidence, search, and accessible
+   labels now use readable titles while retaining the original headline.
+4. Verified the resulting live 25-topic selection has 17 English alternatives,
+   7 Latin originals, 1 other-script title, and no Devanagari primary titles.
+5. Passed typecheck, lint, 21 test files / 153 tests (2 acceptance tests skip by
+   default), the 14-page production build, and `git diff --check`; deployed the
+   READY production release at `https://trendings-gamma.vercel.app`.
+
 ## Known live-data issue
 
 - A previous interrupted `google-news-rss:en-US` run left exactly 12 item rows
@@ -144,14 +166,17 @@ passwords into this file.
 - Commit `50fc2d9` (`Speed up production dashboard`) is pushed to `origin/main`
   and contains the batched dashboard reads, request-scoped auth memoization,
   Node 24 pin, and Tokyo Vercel region configuration.
+- Commit `178bc25` (`Prefer readable English and Romanized titles`) is pushed to
+  `origin/main` and contains readable-topic selection, free deterministic
+  Romanization, original-title provenance, and UI integration.
 - No migration was added for that work.
 - `.env.local` and `.vercel` remain ignored; do not commit either directory or
   copy their values into documentation.
 
 ## Resume from here
 
-1. Confirm the optimized dashboard content appears promptly after a hard
-   refresh of the production URL.
+1. Confirm the English/Roman-readable production headlines after a hard refresh
+   of the production URL.
 2. Decide whether to keep Vercel deployment protection/SSO or disable it so the
    app's own login page is directly reachable from the public URL.
 3. Deploy `pnpm worker` on an always-on host such as Railway, Render, Fly.io, or
