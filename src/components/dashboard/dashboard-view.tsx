@@ -21,6 +21,7 @@ import type { Category } from "@/domain/taxonomy";
 import { categories } from "@/domain/taxonomy";
 import { cn } from "@/lib/cn";
 import type { DashboardResult, DashboardTopic } from "@/lib/dashboard/types";
+import { getReadableTitle } from "@/lib/language/readable-title";
 
 import { EmptyState } from "../empty-state";
 import { Badge } from "../ui/badge";
@@ -360,13 +361,18 @@ function TopicCard({
   onBookmark: () => void;
   onWatch: () => void;
 }) {
+  const readableTitle = getReadableTitle(
+    topic.titleOriginal,
+    topic.titleEnglish,
+  );
+
   return (
     <article className="group rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[0_1px_0_rgba(15,39,45,0.03)] transition hover:border-[var(--line-strong)] hover:shadow-[var(--shadow)] sm:p-5">
       <div className="flex items-start gap-4">
         <Link
           href={`/topic/${topic.id}`}
           className="relative grid size-14 shrink-0 place-items-center rounded-2xl bg-[var(--surface-muted)] sm:size-16"
-          aria-label={`Open evidence for ${topic.titleOriginal}`}
+          aria-label={`Open evidence for ${readableTitle.text}`}
         >
           <span className="text-xl font-semibold tabular-nums tracking-[-0.04em] text-[var(--accent)] sm:text-2xl">
             {topic.score}
@@ -382,6 +388,7 @@ function TopicCard({
             {topic.collectingHistory ? (
               <Badge tone="warning">Collecting history</Badge>
             ) : null}
+            {readableTitle.romanized ? <Badge tone="info">Romanized</Badge> : null}
             {topic.markets.map((market) => (
               <Badge key={market}>{market}</Badge>
             ))}
@@ -390,18 +397,21 @@ function TopicCard({
             <h2
               className={cn(
                 "text-balance text-[17px] font-semibold leading-6 tracking-[-0.02em] text-[var(--ink)] group-hover:text-[var(--accent)] sm:text-lg",
-                topic.language === "ur" && "font-urdu text-xl leading-[2]",
-                topic.language === "hi" && "font-hindi",
+                readableTitle.language === "ur" && "font-urdu text-xl leading-[2]",
+                readableTitle.language === "hi" && "font-hindi",
               )}
-              lang={topic.language === "ur" ? "ur" : topic.language === "hi" ? "hi" : "en"}
-              dir={topic.language === "ur" ? "rtl" : "auto"}
+              lang={readableTitle.language}
+              dir={readableTitle.language === "ur" ? "rtl" : "ltr"}
             >
-              <bdi>{topic.titleOriginal}</bdi>
+              <bdi>{readableTitle.text}</bdi>
             </h2>
           </Link>
-          {topic.titleEnglish && topic.titleEnglish !== topic.titleOriginal ? (
+          {readableTitle.text !== topic.titleOriginal ? (
             <p className="mt-1 text-sm text-[var(--ink-muted)]">
-              {topic.titleEnglish}
+              <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--ink-faint)]">
+                Original
+              </span>
+              <bdi>{topic.titleOriginal}</bdi>
             </p>
           ) : null}
 
@@ -466,7 +476,12 @@ function RawSourceList({ topics }: { topics: DashboardTopic[] }) {
       <ol className="divide-y divide-[var(--line)]">
         {[...topics]
           .sort((a, b) => (a.sourcePosition ?? 999) - (b.sourcePosition ?? 999))
-          .map((topic) => (
+          .map((topic) => {
+            const readableTitle = getReadableTitle(
+              topic.titleOriginal,
+              topic.titleEnglish,
+            );
+            return (
             <li key={topic.id} className="flex items-center gap-4 px-4 py-3 sm:px-5">
               <span className="w-6 text-center text-sm font-semibold tabular-nums text-[var(--ink-faint)]">
                 {topic.sourcePosition ?? "—"}
@@ -476,8 +491,19 @@ function RawSourceList({ topics }: { topics: DashboardTopic[] }) {
                   href={`/topic/${topic.id}`}
                   className="line-clamp-2 text-sm font-semibold text-[var(--ink)] hover:text-[var(--accent)]"
                 >
-                  <bdi>{topic.titleOriginal}</bdi>
+                  <bdi>{readableTitle.text}</bdi>
                 </Link>
+                {readableTitle.romanized ? (
+                  <span className="mt-1 inline-flex text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--accent)]">
+                    Romanized
+                  </span>
+                ) : null}
+                {readableTitle.text !== topic.titleOriginal ? (
+                  <p className="mt-1 line-clamp-1 text-xs text-[var(--ink-muted)]">
+                    <span className="mr-1 font-semibold">Original</span>
+                    <bdi>{topic.titleOriginal}</bdi>
+                  </p>
+                ) : null}
                 <p className="mt-1 text-xs text-[var(--ink-muted)]">
                   {formatAge(topic.ageMinutes)}
                   {topic.approximateTrafficRaw
@@ -486,7 +512,8 @@ function RawSourceList({ topics }: { topics: DashboardTopic[] }) {
                 </p>
               </div>
             </li>
-          ))}
+            );
+          })}
       </ol>
     </div>
   );
@@ -571,11 +598,19 @@ export function DashboardView({ result }: { result: DashboardResult }) {
       if (category !== "all" && topic.category !== category) return false;
       if (topic.score < minScore) return false;
       if (!showCollecting && topic.collectingHistory) return false;
-      if (
-        normalizedSearch &&
-        !topic.titleOriginal.toLocaleLowerCase("en").includes(normalizedSearch)
-      ) {
-        return false;
+      if (normalizedSearch) {
+        const readableTitle = getReadableTitle(
+          topic.titleOriginal,
+          topic.titleEnglish,
+        );
+        const matchesTitle = [
+          readableTitle.text,
+          topic.titleOriginal,
+          topic.titleEnglish,
+        ].some((value) =>
+          value?.toLocaleLowerCase("en").includes(normalizedSearch),
+        );
+        if (!matchesTitle) return false;
       }
       if (activeTab === "top" && topic.ageMinutes > 24 * 60) return false;
       if (activeTab === "rising") {

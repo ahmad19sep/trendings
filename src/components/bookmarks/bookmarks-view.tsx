@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { DashboardTopic } from "@/lib/dashboard/types";
 import { rowsToCsv } from "@/lib/export/csv";
+import { getReadableTitle } from "@/lib/language/readable-title";
 
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -88,6 +89,7 @@ export function BookmarksView({ topics }: { topics: DashboardTopic[] }) {
     const rows: unknown[][] = [
       [
         "topic",
+        "original_topic",
         "category",
         "frozen_score",
         "current_score",
@@ -98,20 +100,27 @@ export function BookmarksView({ topics }: { topics: DashboardTopic[] }) {
         "notes",
         "tags",
       ],
-      ...bookmarked.map((topic) => [
-        topic.titleOriginal,
-        topic.category,
-        meta[topic.id]?.frozenScore ?? topic.score,
-        topic.score,
-        topic.scoreBreakdown
-          .map((component) => `${component.key}:${component.value ?? "missing"}`)
-          .join(" | "),
-        topic.riskFlags.join(" | "),
-        topic.firstSeenAt,
-        `${window.location.origin}/topic/${topic.id}`,
-        meta[topic.id]?.notes ?? "",
-        (meta[topic.id]?.tags ?? []).join(" | "),
-      ]),
+      ...bookmarked.map((topic) => {
+        const readableTitle = getReadableTitle(
+          topic.titleOriginal,
+          topic.titleEnglish,
+        );
+        return [
+          readableTitle.text,
+          topic.titleOriginal,
+          topic.category,
+          meta[topic.id]?.frozenScore ?? topic.score,
+          topic.score,
+          topic.scoreBreakdown
+            .map((component) => `${component.key}:${component.value ?? "missing"}`)
+            .join(" | "),
+          topic.riskFlags.join(" | "),
+          topic.firstSeenAt,
+          `${window.location.origin}/topic/${topic.id}`,
+          meta[topic.id]?.notes ?? "",
+          (meta[topic.id]?.tags ?? []).join(" | "),
+        ];
+      }),
     ];
     const blob = new Blob([rowsToCsv(rows)], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -159,6 +168,10 @@ export function BookmarksView({ topics }: { topics: DashboardTopic[] }) {
             frozenScore: topic.score,
             savedAt: new Date().toISOString(),
           };
+          const readableTitle = getReadableTitle(
+            topic.titleOriginal,
+            topic.titleEnglish,
+          );
           return (
             <article key={topic.id} className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5">
               <div className="flex items-start gap-4">
@@ -175,17 +188,28 @@ export function BookmarksView({ topics }: { topics: DashboardTopic[] }) {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge tone="accent">{topic.category}</Badge>
+                    {readableTitle.romanized ? (
+                      <Badge tone="info">Romanized</Badge>
+                    ) : null}
                     {details.tags.map((value) => (
                       <Badge key={value}>{value}</Badge>
                     ))}
                   </div>
                   <Link href={`/topic/${topic.id}`} className="mt-2 block text-lg font-semibold text-[var(--ink)] hover:text-[var(--accent)]">
-                    <bdi>{topic.titleOriginal}</bdi>
+                    <bdi>{readableTitle.text}</bdi>
                   </Link>
+                  {readableTitle.text !== topic.titleOriginal ? (
+                    <p className="mt-1 text-sm text-[var(--ink-muted)]">
+                      <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--ink-faint)]">
+                        Original
+                      </span>
+                      <bdi>{topic.titleOriginal}</bdi>
+                    </p>
+                  ) : null}
                 </div>
                 <button
                   type="button"
-                  aria-label={`Remove bookmark for ${topic.titleOriginal}`}
+                  aria-label={`Remove bookmark for ${readableTitle.text}`}
                   onClick={() => remove(topic.id)}
                   className="grid size-9 shrink-0 place-items-center rounded-lg text-[var(--ink-faint)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
                 >
@@ -237,7 +261,11 @@ export function BookmarksView({ topics }: { topics: DashboardTopic[] }) {
                 <Button
                   variant="secondary"
                   className="self-end"
-                  onClick={() => setSavedMessage(`Saved notes for “${topic.titleOriginal}” in this browser.`)}
+                  onClick={() =>
+                    setSavedMessage(
+                      `Saved notes for “${readableTitle.text}” in this browser.`,
+                    )
+                  }
                 >
                   <Save aria-hidden="true" size={16} />
                   Save

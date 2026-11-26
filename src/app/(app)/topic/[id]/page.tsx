@@ -12,6 +12,7 @@ import { PageShell } from "@/components/page-shell";
 import { TopicNotes } from "@/components/topic/topic-notes";
 import { Badge } from "@/components/ui/badge";
 import { getDashboardTopic } from "@/lib/dashboard/data";
+import { getReadableTitle } from "@/lib/language/readable-title";
 import type { ComponentKey } from "@/lib/scoring";
 
 const componentLabels: Record<ComponentKey, string> = {
@@ -39,6 +40,10 @@ export default async function TopicEvidencePage({
   const { id } = await params;
   const topic = await getDashboardTopic(id);
   if (!topic) notFound();
+  const readableTitle = getReadableTitle(
+    topic.titleOriginal,
+    topic.titleEnglish,
+  );
 
   const query = encodeURIComponent(topic.titleOriginal);
   const tag = topic.titleOriginal.toLocaleLowerCase("en").replace(/[^\p{L}\p{N}]+/gu, "").slice(0, 80);
@@ -54,16 +59,25 @@ export default async function TopicEvidencePage({
   return (
     <PageShell
       eyebrow="Topic evidence"
-      title={topic.titleOriginal}
+      title={readableTitle.text}
       description="The score explains contentability, not truth or popularity. Raw provider signals stay separate and every missing input remains visible."
       actions={
         <div className="flex flex-wrap gap-2">
           <Badge tone="accent">{topic.category}</Badge>
+          {readableTitle.romanized ? <Badge tone="info">Romanized</Badge> : null}
           {topic.collectingHistory ? <Badge tone="warning">Collecting history</Badge> : null}
           {topic.markets.map((market) => <Badge key={market}>{market}</Badge>)}
         </div>
       }
     >
+      {readableTitle.text !== topic.titleOriginal ? (
+        <div className="mb-5 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--ink-muted)]">
+          <span className="mr-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--ink-faint)]">
+            Original
+          </span>
+          <bdi>{topic.titleOriginal}</bdi>
+        </div>
+      ) : null}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-5">
           <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5">
@@ -129,14 +143,35 @@ export default async function TopicEvidencePage({
             </div>
             {topic.evidence.length ? (
               <ul className="mt-4 divide-y divide-[var(--line)]">
-                {topic.evidence.map((evidence, index) => (
+                {topic.evidence.map((evidence, index) => {
+                  const readableEvidenceTitle = getReadableTitle(evidence.title);
+                  return (
                   <li key={`${evidence.url}-${index}`} className="py-3">
                     <a href={evidence.url} target="_blank" rel="noreferrer" className="group flex items-start justify-between gap-4">
-                      <div><p className="text-sm font-semibold leading-6 text-[var(--ink)] group-hover:text-[var(--accent)]">{evidence.title}</p><p className="mt-1 text-xs text-[var(--ink-muted)]">{evidence.source ?? "Outlet unknown"} · connector: Google Trends RSS related news</p></div>
+                      <div>
+                        <p className="text-sm font-semibold leading-6 text-[var(--ink)] group-hover:text-[var(--accent)]">
+                          {readableEvidenceTitle.text}
+                        </p>
+                        {readableEvidenceTitle.romanized ? (
+                          <span className="mt-1 inline-flex text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--accent)]">
+                            Romanized
+                          </span>
+                        ) : null}
+                        {readableEvidenceTitle.text !== evidence.title ? (
+                          <p className="mt-1 text-xs leading-5 text-[var(--ink-muted)]">
+                            <span className="mr-1 font-semibold">Original</span>
+                            <bdi>{evidence.title}</bdi>
+                          </p>
+                        ) : null}
+                        <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                          {evidence.source ?? "Outlet unknown"} · connector: Google Trends RSS related news
+                        </p>
+                      </div>
                       <ExternalLink aria-hidden="true" size={16} className="mt-1 shrink-0 text-[var(--ink-faint)]" />
                     </a>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             ) : (
               <p className="mt-4 text-sm text-[var(--ink-muted)]">No related headline was supplied by this observation.</p>

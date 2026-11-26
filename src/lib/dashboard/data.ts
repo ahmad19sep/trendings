@@ -41,6 +41,10 @@ import type { DashboardResult, DashboardTopic } from "./types";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const DEVANAGARI_SCRIPT_PATTERN = /\p{Script=Devanagari}/u;
+const ARABIC_SCRIPT_PATTERN = /\p{Script=Arabic}/u;
+const DASHBOARD_TOPIC_LIMIT = 25;
+const DASHBOARD_CANDIDATE_LIMIT = 250;
 
 function stableTopicId(item: RawItem): string {
   return createHash("sha256")
@@ -232,6 +236,36 @@ function rowsByTopicId<T extends { topicId: string }>(
   return grouped;
 }
 
+function englishTitle(topic: StoredTopic): string | null {
+  return topic.titleEn?.trim() || null;
+}
+
+function readabilityPriority(topic: StoredTopic): number {
+  if (englishTitle(topic)) return 0;
+
+  const hasDevanagari = DEVANAGARI_SCRIPT_PATTERN.test(topic.titleOriginal);
+  const hasArabic = ARABIC_SCRIPT_PATTERN.test(topic.titleOriginal);
+  if (!hasDevanagari && !hasArabic) return 0;
+  if (hasArabic) return 1;
+  return 2;
+}
+
+function selectReadableDashboardTopics(candidates: StoredTopic[]): StoredTopic[] {
+  return candidates
+    .map((topic, recencyIndex) => ({
+      topic,
+      recencyIndex,
+      priority: readabilityPriority(topic),
+    }))
+    .sort(
+      (left, right) =>
+        left.priority - right.priority ||
+        left.recencyIndex - right.recencyIndex,
+    )
+    .slice(0, DASHBOARD_TOPIC_LIMIT)
+    .map(({ topic }) => topic);
+}
+
 function mapDatabaseTopic(
   topic: StoredTopic,
   latestScore: LatestScoreRow | undefined,
@@ -252,7 +286,7 @@ function mapDatabaseTopic(
   return {
     id: topic.id,
     titleOriginal: topic.titleOriginal,
-    titleEnglish: topic.titleEn,
+    titleEnglish: englishTitle(topic),
     language,
     category,
     score: Math.round(latestScore?.score ?? 0),
@@ -361,8 +395,9 @@ async function readDatabaseTopics(): Promise<DashboardResult> {
     .select()
     .from(topics)
     .orderBy(desc(topics.lastActivityAt))
-    .limit(25);
-  const mapped = await mapDatabaseTopics(db, rows);
+    .limit(DASHBOARD_CANDIDATE_LIMIT);
+  const selectedRows = selectReadableDashboardTopics(rows);
+  const mapped = await mapDatabaseTopics(db, selectedRows);
 
   return {
     topics: mapped,

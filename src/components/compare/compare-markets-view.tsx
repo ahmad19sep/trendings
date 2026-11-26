@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import type { DashboardTopic } from "@/lib/dashboard/types";
+import { getReadableTitle } from "@/lib/language/readable-title";
 
 import { Badge } from "../ui/badge";
 
@@ -41,7 +42,12 @@ function TopicRows({
 
   return (
     <div className="space-y-2">
-      {topics.map((topic) => (
+      {topics.map((topic) => {
+        const readableTitle = getReadableTitle(
+          topic.titleOriginal,
+          topic.titleEnglish,
+        );
+        return (
         <Link
           key={topic.id}
           href={`/topic/${topic.id}`}
@@ -53,8 +59,19 @@ function TopicRows({
             </span>
             <div className="min-w-0">
               <p className="line-clamp-2 text-sm font-semibold leading-5 text-[var(--ink)]">
-                <bdi>{topic.titleOriginal}</bdi>
+                <bdi>{readableTitle.text}</bdi>
               </p>
+              {readableTitle.romanized ? (
+                <span className="mt-1 inline-flex text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--accent)]">
+                  Romanized
+                </span>
+              ) : null}
+              {readableTitle.text !== topic.titleOriginal ? (
+                <p className="mt-1 line-clamp-1 text-xs text-[var(--ink-muted)]">
+                  <span className="mr-1 font-semibold">Original</span>
+                  <bdi>{topic.titleOriginal}</bdi>
+                </p>
+              ) : null}
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {topic.markets.map((market) => (
                   <Badge key={market}>{market}</Badge>
@@ -66,7 +83,8 @@ function TopicRows({
             </div>
           </div>
         </Link>
-      ))}
+        );
+      })}
     </div>
   );
 }
